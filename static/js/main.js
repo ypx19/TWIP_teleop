@@ -1,6 +1,7 @@
 // TWIP 网页仿真器前端主逻辑
 let socket = null;
 let isRecording = false;
+let isPreviewingRecord = false;
 let recordedDatasets = [];
 let currentDatasetIndex = -1;
 
@@ -23,8 +24,14 @@ window.onload = function() {
     document.getElementById('btn-trim').onclick = trimData;
     document.getElementById('btn-export').onclick = exportData;
     document.getElementById('data-list').onchange = handleDataSelection;
-    document.getElementById('trim-start').oninput = updateTrimRange;
-    document.getElementById('trim-end').oninput = updateTrimRange;
+    
+    // 时间轴预览相关
+    const timelineContainer = document.getElementById('timeline-container');
+    timelineContainer.addEventListener('mousemove', handleTimelineHover);
+    timelineContainer.addEventListener('mouseleave', resetTimelinePreview);
+    timelineContainer.addEventListener('mousedown', startTimelineDrag);
+    document.addEventListener('mousemove', handleTimelineDrag);
+    document.addEventListener('mouseup', stopTimelineDrag);
 
     // 键盘遥控
     window.addEventListener('keydown', function(e) {
@@ -41,11 +48,11 @@ window.onload = function() {
     // 监听仿真状态
     socket.on('sim_state', function(data) {
         // 画面
-        if (data.image) {
+        if (!isPreviewingRecord && data.image) {
             document.getElementById('sim-img').src = 'data:image/png;base64,' + data.image;
         }
         // 状态栏
-        if (data.state) updateStatus(data.state);
+        if (!isPreviewingRecord && data.state) updateStatus(data.state);
         // 记录数据（仅在记录中时）
         if (isRecording) {
             recordCurrentState(data.state);
@@ -108,6 +115,7 @@ function startRecord() {
 function stopRecord() {
     socket.emit('stop_recording');
     isRecording = false;
+    isPreviewingRecord = true;
     document.getElementById('btn-record').disabled = false;
     document.getElementById('btn-stop').disabled = true;
     document.getElementById('record-status').textContent = '未记录';
@@ -162,50 +170,77 @@ function handleDataSelection() {
     currentDatasetIndex = parseInt(dataList.value);
     updateTrimRange();
     document.getElementById('btn-play').disabled = (currentDatasetIndex < 0);
+    // 新增：根据选中记录调整时间轴长度
+    updateTimelineLength();
 }
 
-function updateTrimRange() {
+let trimStart = 0;
+let trimEnd = 1;
+let isDraggingTrimStart = false;
+let isDraggingTrimEnd = false;
+
+function updateTrimPointers() {
+    const timelineContainer = document.getElementById('timeline-container');
+    const startPointer = document.getElementById('trim-start-pointer');
+    const endPointer = document.getElementById('trim-end-pointer');
     if (currentDatasetIndex < 0) return;
     const ds = recordedDatasets[currentDatasetIndex];
-    const startSlider = document.getElementById('trim-start');
-    const endSlider = document.getElementById('trim-end');
-    const startVal = parseInt(startSlider.value);
-    const endVal = parseInt(endSlider.value);
-    const duration = ds.duration;
-    const tStart = (startVal / 100) * duration;
-    const tEnd = (endVal / 100) * duration;
-    document.getElementById('trim-start-value').textContent = tStart.toFixed(2) + 's';
-    document.getElementById('trim-end-value').textContent = tEnd.toFixed(2) + 's';
-    // 保证滑块不交叉
-    if (startVal >= endVal) {
-        if (event && event.target === startSlider) {
-            endSlider.value = startVal + 1;
-        } else {
-            startSlider.value = endVal - 1;
-        }
+    if (!ds.data || ds.data.length === 0) return;
+    const rect = timelineContainer.getBoundingClientRect();
+    const startX = trimStart * rect.width;
+    const endX = trimEnd * rect.width;
+    startPointer.style.left = `${startX}px`;
+    endPointer.style.left = `${endX - endPointer.offsetWidth}px`;
+}
+
+document.getElementById('trim-start-pointer').addEventListener('mousedown', function(e) {
+    isDraggingTrimStart = true;
+    e.stopPropagation();
+});
+document.getElementById('trim-end-pointer').addEventListener('mousedown', function(e) {
+    isDraggingTrimEnd = true;
+    e.stopPropagation();
+});
+document.addEventListener('mousemove', function(e) {
+    if (!isDraggingTrimStart && !isDraggingTrimEnd) return;
+    const timelineContainer = document.getElementById('timeline-container');
+    const rect = timelineContainer.getBoundingClientRect();
+    let x = Math.max(0, Math.min(e.clientX - rect.left, rect.width));
+    let percent = x / rect.width;
+    if (isDraggingTrimStart) {
+        trimStart = Math.max(0, Math.min(percent, trimEnd - 0.01));
     }
+    if (isDraggingTrimEnd) {
+        trimEnd = Math.min(1, Math.max(percent, trimStart + 0.01));
+    }
+    updateTrimPointers();
+});
+document.addEventListener('mouseup', function(e) {
+    isDraggingTrimStart = false;
+    isDraggingTrimEnd = false;
+});
+
+function updateTimelineLength() {
+    const timelineContainer = document.getElementById('timeline-container');
+    if (currentDatasetIndex < 0) return;
+    const ds = recordedDatasets[currentDatasetIndex];
+    if (!ds.data || ds.data.length === 0) return;
+    timelineContainer.setAttribute('data-duration', ds.duration);
+    document.getElementById('timeline-time').textContent = `0.00s / ${ds.duration.toFixed(2)}s`;
+    trimStart = 0;
+    trimEnd = 1;
+    updateTrimPointers();
 }
 
 function trimData() {
     if (currentDatasetIndex < 0) return;
     const ds = recordedDatasets[currentDatasetIndex];
-    const startSlider = document.getElementById('trim-start');
-    const endSlider = document.getElementById('trim-end');
-    const duration = ds.duration;
-    const tStart = (parseInt(startSlider.value) / 100) * duration;
-    const tEnd = (parseInt(endSlider.value) / 100) * duration;
-    const trimmed = ds.data.filter(item => item.timestamp >= tStart && item.timestamp <= tEnd);
-    if (trimmed.length > 0) {
-        const name = ds.name + '-裁剪';
-        recordedDatasets.push({
-            name,
-            data: trimmed,
-            duration: tEnd - tStart
-        });
-        updateDataList();
-        document.getElementById('data-list').selectedIndex = recordedDatasets.length - 1;
-        currentDatasetIndex = recordedDatasets.length - 1;
-    }
+    if (!ds.data || ds.data.length === 0) return;
+    const startTime = trimStart * ds.duration;
+    const endTime = trimEnd * ds.duration;
+    const trimmed = ds.data.filter(d => d.timestamp >= startTime && d.timestamp <= endTime);
+    // 可根据需求将trimmed数据集保存或导出
+    alert(`已裁剪区间: ${startTime.toFixed(2)}s ~ ${endTime.toFixed(2)}s, 共${trimmed.length}帧`);
 }
 
 function exportData() {
@@ -275,4 +310,53 @@ function updateStatus(state) {
     document.getElementById('pos').textContent = `x=${state.position?.toFixed(2) ?? 0}`;
     document.getElementById('v').textContent = `v=${state.velocity?.toFixed(2) ?? 0}`;
     document.getElementById('theta').textContent = `θ=${state.tilt_angle?.toFixed(2) ?? 0}`;
+}
+let isTimelineDragging = false;
+function startTimelineDrag(event) {
+    isTimelineDragging = true;
+    handleTimelineHover(event);
+}
+function handleTimelineDrag(event) {
+    if (!isTimelineDragging) return;
+    const timelineContainer = document.getElementById('timeline-container');
+    const rect = timelineContainer.getBoundingClientRect();
+    if (event.clientX < rect.left || event.clientX > rect.right) return;
+    handleTimelineHover(event);
+}
+function handleTimelineHover(event) {
+    if (currentDatasetIndex < 0) return;
+    const ds = recordedDatasets[currentDatasetIndex];
+    if (!ds.data || ds.data.length === 0) return;
+    isPreviewingRecord = true;
+    const container = document.getElementById('timeline-container');
+    const cursor = document.getElementById('timeline-cursor');
+    const rect = container.getBoundingClientRect();
+    const x = Math.max(0, Math.min(event.clientX - rect.left, rect.width));
+    const percent = x / rect.width;
+    const time = percent * ds.duration;
+    cursor.style.left = `${x}px`;
+    document.getElementById('timeline-time').textContent = `${time.toFixed(2)}s / ${ds.duration.toFixed(2)}s`;
+    // 找到最接近该时间点的帧
+    let frameIdx = 0;
+    for (let i = 0; i < ds.data.length; i++) {
+        if (ds.data[i].timestamp >= time) {
+            frameIdx = i;
+            break;
+        }
+    }
+    const frame = ds.data[frameIdx];
+    if (frame && frame.image) {
+        document.getElementById('sim-img').src = frame.image;
+        updateStatus(frame);
+    }
+}
+function resetTimelinePreview() {
+    isPreviewingRecord = false;
+    // 可根据需要重置主显示区或保持最后预览帧
+}
+function stopTimelineDrag(event) {
+    if (isTimelineDragging) {
+        isTimelineDragging = false;
+        handleTimelineHover(event);
+    }
 }

@@ -53,12 +53,14 @@
                     <button id="btn-play" disabled>回放</button>
                 </div>
                 <div style="margin:10px 0;">
-                    <label>裁剪区间：</label>
-                    <input type="range" id="trim-start" min="0" max="100" value="0" style="width:100px;">
-                    <span id="trim-start-value">0.00s</span>
-                    ~
-                    <input type="range" id="trim-end" min="0" max="100" value="100" style="width:100px;">
-                    <span id="trim-end-value">0.00s</span>
+                    <label>时间轴预览：</label>
+                    <div id="timeline-container" style="position:relative;width:100%;height:40px;background:#eee;margin-top:20px;">
+                        <div id="timeline-cursor" style="position:absolute;top:0;width:2px;height:100%;background:#007bff;"></div>
+                        <div id="timeline-time" style="position:absolute;top:0;left:0;background:#fff;padding:2px 8px;border-radius:4px;box-shadow:0 0 2px #aaa;"></div>
+                        <!-- 新增两个可拖拽的区间头指针 -->
+                        <div id="trim-start-pointer" style="position:absolute;top:0;width:8px;height:100%;background:#28a745;cursor:ew-resize;border-radius:4px;"></div>
+                        <div id="trim-end-pointer" style="position:absolute;top:0;width:8px;height:100%;background:#dc3545;cursor:ew-resize;border-radius:4px;"></div>
+                    </div>
                 </div>
                 <div>
                     <button id="btn-trim">裁剪</button>
