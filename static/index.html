@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>TWIP 仿真器网页版</title>
+    <link rel="stylesheet" href="static/css/style.css">
+</head>
+<body>
+<div class="container">
+    <header>
+        <h1>TWIP 平衡车仿真器</h1>
+        <p>网页版实时仿真与遥控</p>
+    </header>
+    <main class="main-content">
+        <section class="simulator">
+            <h2>仿真画面</h2>
+            <img id="sim-img" src="" width="640" height="480" alt="仿真画面"/>
+            <div id="sim-status">
+                <p>左摇杆: <span id="stick">(0.00, 0.00)</span></p>
+                <p>电机: <span id="motor">L=0.00, R=0.00</span></p>
+                <p>轮子角度: <span id="angle">L=0.00, R=0.00</span></p>
+                <p>轮子角速度: <span id="vel">L=0.00, R=0.00</span></p>
+                <p>仿真速度: <span id="speed">1/10.0</span></p>
+                <p>车身位置: <span id="pos">x=0.00</span></p>
+                <p>车身速度: <span id="v">v=0.00</span></p>
+                <p>倾斜角度: <span id="theta">θ=0.00</span></p>
+            </div>
+        </section>
+        <section class="controls">
+            <h2>遥控与数据</h2>
+            <div>
+                <button id="btn-record">开始记录</button>
+                <button id="btn-stop" disabled>停止记录</button>
+                <span id="record-status">未记录</span>
+            </div>
+            <div>
+                <button id="btn-pause">暂停仿真</button>
+                <label>仿真速度: <input type="range" id="sim-speed" min="1" max="20" value="20"></label>
+                <span id="sim-speed-label">最快</span>
+            </div>
+            <div>
+                <button id="btn-up">↑</button>
+                <button id="btn-left">←</button>
+                <button id="btn-down">↓</button>
+                <button id="btn-right">→</button>
+            </div>
+            <hr>
+            <div id="data-manager">
+                <h3>数据管理</h3>
+                <div>
+                    <label>记录数据：</label>
+                    <select id="data-list" size="3" style="min-width:200px;"></select>
+                    <button id="btn-play" disabled>回放</button>
+                </div>
+                <div style="margin:10px 0;">
+                    <label>裁剪区间：</label>
+                    <input type="range" id="trim-start" min="0" max="100" value="0" style="width:100px;">
+                    <span id="trim-start-value">0.00s</span>
+                    ~
+                    <input type="range" id="trim-end" min="0" max="100" value="100" style="width:100px;">
+                    <span id="trim-end-value">0.00s</span>
+                </div>
+                <div>
+                    <button id="btn-trim">裁剪</button>
+                    <button id="btn-export">导出</button>
+                </div>
+                <div style="margin-top:10px;">
+                    <label><input type="checkbox" id="export-pos" checked> 位置</label>
+                    <label><input type="checkbox" id="export-vel" checked> 速度</label>
+                    <label><input type="checkbox" id="export-angle" checked> 倾斜角</label>
+                    <label><input type="checkbox" id="export-motor" checked> 电机</label>
+                    <label><input type="checkbox" id="export-wheel" checked> 轮子</label>
+                </div>
+            </div>
+        </section>
+    </main>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/socket.io-client@3/dist/socket.io.min.js"></script>
+<script src="static/js/main.js"></script>
+</body>
+</html>
